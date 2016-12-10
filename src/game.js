@@ -19,12 +19,37 @@ function debugLog(msg) {
 // State
 var selector, elevatorRight, elevatorLeft, selector;
 
+var allGuests = [];
 var waitingGuests = Array(11).fill(undefined);
 var roomsInProgress = Array(25).fill(undefined);
 var roomLights = [];
 var targetRoom = null;
 var selectedGuest = null;
 var scoreText = null;
+
+var rKey;
+
+function reset() {
+  game.state.restart();
+  // targetRoom = null;
+  // selectedGuest = null;
+  // waitingGuests = Array(11).fill(undefined);
+  // roomsInProgress = Array(25).fill(undefined);
+  // updateScore(0);
+  // 
+  // selector.hide();
+  // elevatorRight.destroy();
+  // elevatorLeft.destroy();
+  // 
+  // elevatorRight = createElevator(true);
+  // elevatorLeft = createElevator(false);
+  // 
+  // var x;
+  // for (x = 0; x != roomLights.length; x++) {
+  //   roomLights[x].free.visible = false;
+  //   roomLights[x].occupied.visible = true;
+  // }
+}
 
 // Helpers
 function doorToX(door) {
@@ -81,6 +106,12 @@ function createGuest(position, type) {
   }
   
   return {
+    destroy: function () {
+      sprites.forEach(function (sprite) {
+        sprite.destroy();
+      });
+    },
+    
     getType : function () { return type; },
     
     teleport: function (room) {
@@ -102,6 +133,7 @@ function createGuest(position, type) {
         sprites.forEach(function (sprite) {
           sprite.destroy();
         });
+        allGuests = allGuests.filter(function (guest) { console.log(" -> " , guest == self); return guest == self; });
         updateScore(1);
       }, true);
     },
@@ -184,6 +216,7 @@ function createGuest(position, type) {
               sprites.forEach(function(sprite) {
                 sprite.destroy();
               });
+              allGuests = allGuests.filter(function (guest) { console.log(guest == self); return guest == this; });
               updateScore(1);
             }, this);
           });
@@ -212,6 +245,10 @@ function createElevator(right) {
   var sprite = addSprite("elevator", x, y);
   
   return {
+    destroy: function () {
+      sprite.destroy();
+    },
+    
     getRight: function () {
       return right;
     },
@@ -259,14 +296,14 @@ function spawnNewGuest() {
     var type = 1 + parseInt(3 * Math.random());
     
     waitingGuests[slot] = createGuest(slot, type);
+    allGuests.push(waitingGuests[slot])
   }
 }
 
 function freeRoom () {
-  console.log("!");
   var index, availableRooms = [];
   
-  if (!targetRoom) {
+  if (targetRoom == null) {
     for (index = 0; index != 25; index++) {
       if (!roomsInProgress[index]) {
         availableRooms.push(index);
@@ -274,13 +311,11 @@ function freeRoom () {
     }
     
     if (availableRooms.length > 0) {
-      console.log(parseInt(availableRooms.length * Math.random()));
       targetRoom = availableRooms[parseInt(availableRooms.length * Math.random())];
       roomLights[targetRoom].toggle();
       debugLog("Set target room: " + targetRoom);
     }
   }
-  console.log("!!");
 }
 
 function preload () {
@@ -453,6 +488,17 @@ function create () {
   
   game.input.onDown.add(handleInput);
   
-  game.time.events.loop(1 * Phaser.Timer.SECOND, spawnNewGuest, this);
-  game.time.events.loop(Phaser.Timer.SECOND, freeRoom, this);
+  rKey = game.input.keyboard.addKey(Phaser.Keyboard.R);
+  rKey.onDown.add(reset, this);
+  
+  freeRoom();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  
+  game.state.start('mystate',true,false);
+  
+  game.time.events.loop(3 * Phaser.Timer.SECOND, spawnNewGuest, this);
+  game.time.events.loop(2 * Phaser.Timer.SECOND, freeRoom, this);
 }
