@@ -5,6 +5,7 @@ var scale = 4;
 var unit = tileSize * scale;
 var gameWidth = 13;
 var gameHeight = 13;
+var score = 0;
 
 // Phaser game
 var game = new Phaser.Game(gameWidth * unit, gameHeight * unit, Phaser.AUTO, '', { preload: preload, create: create });
@@ -23,6 +24,7 @@ var roomsInProgress = Array(25).fill(undefined);
 var roomLights = [];
 var targetRoom = null;
 var selectedGuest = null;
+var scoreText = null;
 
 // Helpers
 function doorToX(door) {
@@ -39,6 +41,11 @@ function floorFromRoom(room) {
 
 function doorFromRoom(room) {
   return room % 5;
+}
+
+function updateScore(newScore) {
+  score += newScore;
+  scoreText.text = "score: " + score;
 }
 
 // Functions
@@ -67,6 +74,7 @@ function createGuest(position, type) {
       game.time.events.add(Phaser.Timer.SECOND, function () {
         roomsInProgress[room] = false;
         sprite.destroy();
+        updateScore(1);
       }, true);
     },
     
@@ -98,6 +106,7 @@ function createGuest(position, type) {
             game.time.events.add(Phaser.Timer.SECOND, function () {
               roomsInProgress[room] = false;
               sprite.destroy();
+              updateScore(1);
             }, this);
           });
           
@@ -121,6 +130,7 @@ function createElevator(right) {
   var busy = false;
   var x = right ? gameWidth - 1 : 0;
   var y = yToFloor(currentFloor);
+  var speed = right ? 1000 : 500;
   var sprite = addSprite("elevator", x, y);
   
   return {
@@ -137,13 +147,13 @@ function createElevator(right) {
     },
     
     elevatorUpTween: function (floor, tween) {
-      tween.to({ y: unit * yToFloor(floor) }, Math.abs(floor - currentFloor) * 1500, Phaser.Easing.Default, false, 1500)
+      tween.to({ y: unit * yToFloor(floor) }, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1500)
     },
     
     move: function (floor) {
       var elevatorTween = game.add.tween(sprite);
       this.elevatorUpTween(floor, elevatorTween);
-      elevatorTween.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * 1500, Phaser.Easing.Default, false, 1500);
+      elevatorTween.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1500);
       elevatorTween.onComplete.add(function () { busy = false; });
       elevatorTween.start();
     }
@@ -196,6 +206,8 @@ function preload () {
   game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
   game.scale.pageAlignHorizontally = true;
   game.scale.pageAlignVertically = true;
+  
+  game.load.bitmapFont('font', 'font/font.png', 'font/font.fnt');
   
   [
     "selector",
@@ -255,12 +267,15 @@ function handleInput() {
     
     if (guest.getType() == 3) {
       if (!!targetRoom) {
-        guest.teleport(targetRoom);
         roomLights[targetRoom].toggle();
         roomsInProgress[targetRoom] = true;
+        guest.teleport(targetRoom);
         targetRoom = null;
         waitingGuests[x - 1] = null;
       }
+      
+      selectedGuest = null;
+      selector.hide();
     } else {
       selectedGuest = x;
       debugLog("Selected guest " + selectedGuest)
@@ -342,6 +357,8 @@ function create () {
   };
   
   selector.hide();
+  
+  scoreText = game.add.bitmapText(10, 6, 'font', 'score: 0', 16);
   
   game.input.onDown.add(handleInput);
   
