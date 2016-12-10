@@ -26,30 +26,7 @@ var roomLights = [];
 var targetRoom = null;
 var selectedGuest = null;
 var scoreText = null;
-
 var rKey;
-
-function reset() {
-  game.state.restart();
-  // targetRoom = null;
-  // selectedGuest = null;
-  // waitingGuests = Array(11).fill(undefined);
-  // roomsInProgress = Array(25).fill(undefined);
-  // updateScore(0);
-  // 
-  // selector.hide();
-  // elevatorRight.destroy();
-  // elevatorLeft.destroy();
-  // 
-  // elevatorRight = createElevator(true);
-  // elevatorLeft = createElevator(false);
-  // 
-  // var x;
-  // for (x = 0; x != roomLights.length; x++) {
-  //   roomLights[x].free.visible = false;
-  //   roomLights[x].occupied.visible = true;
-  // }
-}
 
 // Helpers
 function doorToX(door) {
@@ -203,7 +180,7 @@ function createGuest(position, type) {
           var goToDoorTween = game.add.tween(spriteWalk);
           var speedMultiplier2 = elevator.getRight() ? (5 - door) * 2 : (door + 1) * 2 ;
           
-          goToDoorTween.to({ x: doorToX(door) }, speedMultiplier2 * speed, Phaser.Easing.Default, false, 0);
+          goToDoorTween.to({ x: doorToX(door) }, speedMultiplier2 * speed, Phaser.Easing.Default, false, 500);
           
           goToDoorTween.onComplete.add(function () {
             spriteWalk.visible = false;
@@ -245,10 +222,6 @@ function createElevator(right) {
   var sprite = addSprite("elevator", x, y);
   
   return {
-    destroy: function () {
-      sprite.destroy();
-    },
-    
     getRight: function () {
       return right;
     },
@@ -266,11 +239,68 @@ function createElevator(right) {
     },
     
     move: function (floor) {
+      var spriteDoor = addSprite('elevator_close', x, y);
+      spriteDoor.visible = false;
+      spriteDoor.animations.add('close');
+      
+      var doorOpen = addSprite('elevator_open', x, y);
+      doorOpen.visible = false;
+      var doorOpenAnimation = doorOpen.animations.add('open');
+      
+      doorOpenAnimation.onComplete.add(function () {
+        doorOpen.visible = false;
+      });
+      
+      spriteDoor.animations.play('close', 8);
+      spriteDoor.visible = true;
+      game.world.bringToTop(spriteDoor);
+      
       var elevatorTween = game.add.tween(sprite);
+      var elevatorDoorTween = game.add.tween(spriteDoor);
+      
       this.elevatorUpTween(floor, elevatorTween);
-      elevatorTween.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1500);
-      elevatorTween.onComplete.add(function () { busy = false; });
+      this.elevatorUpTween(floor, elevatorDoorTween);
+      
+      elevatorTween.onComplete.add(function () {
+        spriteDoor.visible = false;
+        doorOpen.y = sprite.y;
+        doorOpen.visible = true;
+        game.world.bringToTop(doorOpen);
+        var animation = doorOpen.animations.play('open', 5, false);
+        
+        var dummyTween = game.add.tween(sprite);
+        dummyTween.to({}, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1000);
+        
+        dummyTween.onComplete.add(function () {
+          spriteDoor.animations.play('close', 8);
+          spriteDoor.visible = true;
+          game.world.bringToTop(spriteDoor);
+          
+          var elevatorTween2 = game.add.tween(sprite);
+          var elevatorDoorTween2 = game.add.tween(spriteDoor);
+          
+          elevatorTween2.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1000);
+          elevatorDoorTween2.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1000);
+          
+          elevatorTween2.onComplete.add(function () { 
+            doorOpen.y = sprite.y;
+            doorOpen.visible = true;
+            game.world.bringToTop(doorOpen);
+            doorOpen.animations.play('open', 5, false, true);
+            spriteDoor.visible = false;
+            busy = false; 
+          });
+          
+          elevatorTween2.start();
+          elevatorDoorTween2.start();
+        });
+        
+        dummyTween.start();
+
+      });
+      
       elevatorTween.start();
+      elevatorDoorTween.start();
     }
   };
 }
@@ -352,7 +382,9 @@ function preload () {
     "guest2_idle",
     "guest2_walk",
     "guest3_idle",
-    "guest3_walk"
+    "guest3_walk",
+    "elevator_open",
+    "elevator_close"
   ].forEach(function (title) {
     game.load.spritesheet(title, 'img/' + title + '.png', 16, 16);
   });
@@ -488,16 +520,11 @@ function create () {
   
   game.input.onDown.add(handleInput);
   
-  rKey = game.input.keyboard.addKey(Phaser.Keyboard.R);
-  rKey.onDown.add(reset, this);
-  
   freeRoom();
   spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
-  
-  game.state.start('mystate',true,false);
   
   game.time.events.loop(3 * Phaser.Timer.SECOND, spawnNewGuest, this);
   game.time.events.loop(2 * Phaser.Timer.SECOND, freeRoom, this);
