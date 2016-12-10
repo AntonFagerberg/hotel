@@ -50,7 +50,30 @@ function updateScore(newScore) {
 
 // Functions
 function createGuest(position, type) {
-  var sprite = addSprite("guest" + type, position + 1, gameHeight - 1);
+  var spriteIdle = addSprite('guest' + type + '_idle', position + 1, gameHeight - 1);
+  var spriteWalk = addSprite('guest' + type + '_walk', position + 1, gameHeight - 1);
+  spriteWalk.visible = false;
+  
+  var sprites = [spriteIdle, spriteWalk]
+  
+  spriteIdle.animations.add('idle');
+  var walkAnimation = spriteWalk.animations.add('walk');
+  
+  spriteIdle.animations.play('idle', 5 + Math.random(), true);
+  if (type != 3) {
+    spriteWalk.animations.play('walk', 5 + Math.random(), true);
+  }
+  
+  var facingLeft = false;
+  
+  if (position < (gameWidth - 1) / 2) {
+    facingLeft = true;
+    sprites.forEach(function (sprite) {
+      sprite.anchor.setTo(1, 0);
+      sprite.scale.x *= -1;
+    });
+  }
+  
   var speed = 500;
   
   if (type == 2) {
@@ -68,12 +91,17 @@ function createGuest(position, type) {
       
       debugLog("Teleporting to x " + x + ", y " + y + ", room " + room)
       
-      sprite.position.x = x;
-      sprite.position.y = y;
+      spriteWalk.visible = true;
+      spriteWalk.animations.play('walk', 5, false, true);
+      
+      spriteIdle.position.x = x;
+      spriteIdle.position.y = y;
 
       game.time.events.add(Phaser.Timer.SECOND, function () {
         roomsInProgress[room] = false;
-        sprite.destroy();
+        sprites.forEach(function (sprite) {
+          sprite.destroy();
+        });
         updateScore(1);
       }, true);
     },
@@ -84,28 +112,78 @@ function createGuest(position, type) {
       
       debugLog("Going to room " + room + " (floor " + floor + ", door " + door + ", position " + position + ")")
       
-      var goToElevatorTween = game.add.tween(sprite);
+      spriteIdle.visible = false;
+      spriteWalk.x = spriteIdle.x;
+      spriteWalk.y = spriteIdle.y;
+      spriteWalk.visible = true;
+      
+      if (elevator.getRight() && facingLeft) {
+        facingLeft = false;
+        sprites.forEach(function (sprite) {
+          sprite.anchor.setTo(0, 0);
+          sprite.scale.x *= -1;
+        });
+      } else if (!elevator.getRight() && !facingLeft) {
+        facingLeft = true;
+        sprites.forEach(function (sprite) {
+          sprite.anchor.setTo(1, 0);
+          sprite.scale.x *= -1;
+        });
+      }
+      
+      var goToElevatorTween = game.add.tween(spriteWalk);
       var targetX = unit * (elevator.getRight() ? 12 : 0);
       var speedMultiplier1 = elevator.getRight() ? (gameWidth - 2 - position) : (1 + position);
       
       goToElevatorTween.to({ x: targetX }, speedMultiplier1 * speed, Phaser.Easing.Default, false, 0);
 
       goToElevatorTween.onComplete.add(function () { 
+        if (facingLeft) {
+          facingLeft = false;
+          sprites.forEach(function (sprite) {
+            sprite.anchor.setTo(0, 0);
+            sprite.scale.x *= -1;
+          });
+        } else  {
+          facingLeft = true;
+          sprites.forEach(function (sprite) {
+            sprite.anchor.setTo(1, 0);
+            sprite.scale.x *= -1;
+          });
+        }
+        
+        spriteWalk.visible = false;
+        spriteIdle.x = spriteWalk.x;
+        spriteIdle.y = spriteWalk.y;
+        spriteIdle.visible = true;
+        
         elevator.move(floor);
         
-        var rideElevatorTween = game.add.tween(sprite);
+        var rideElevatorTween = game.add.tween(spriteIdle);
         elevator.elevatorUpTween(floor, rideElevatorTween);
         
         rideElevatorTween.onComplete.add(function () {
-          var goToDoorTween = game.add.tween(sprite);
+          spriteIdle.visible = false;
+          spriteWalk.x = spriteIdle.x;
+          spriteWalk.y = spriteIdle.y;
+          spriteWalk.visible = true;
+          
+          var goToDoorTween = game.add.tween(spriteWalk);
           var speedMultiplier2 = elevator.getRight() ? (5 - door) * 2 : (door + 1) * 2 ;
           
           goToDoorTween.to({ x: doorToX(door) }, speedMultiplier2 * speed, Phaser.Easing.Default, false, 0);
           
           goToDoorTween.onComplete.add(function () {
+            spriteWalk.visible = false;
+            spriteIdle.x = spriteWalk.x;
+            spriteIdle.y = spriteWalk.y;
+            spriteIdle.visible = true;
+            
             game.time.events.add(Phaser.Timer.SECOND, function () {
               roomsInProgress[room] = false;
-              sprite.destroy();
+              sprites.forEach(function(sprite) {
+                sprite.destroy();
+              });
               updateScore(1);
             }, this);
           });
@@ -185,6 +263,7 @@ function spawnNewGuest() {
 }
 
 function freeRoom () {
+  console.log("!");
   var index, availableRooms = [];
   
   if (!targetRoom) {
@@ -195,11 +274,13 @@ function freeRoom () {
     }
     
     if (availableRooms.length > 0) {
+      console.log(parseInt(availableRooms.length * Math.random()));
       targetRoom = availableRooms[parseInt(availableRooms.length * Math.random())];
       roomLights[targetRoom].toggle();
       debugLog("Set target room: " + targetRoom);
     }
   }
+  console.log("!!");
 }
 
 function preload () {
@@ -229,6 +310,17 @@ function preload () {
   ].forEach(function (title) {
     game.load.image(title, 'img/' + title + '.png');
   });
+  
+  [
+    "guest1_walk",
+    "guest1_idle",
+    "guest2_idle",
+    "guest2_walk",
+    "guest3_idle",
+    "guest3_walk"
+  ].forEach(function (title) {
+    game.load.spritesheet(title, 'img/' + title + '.png', 16, 16);
+  });
 }
 
 function handleInput() {
@@ -250,8 +342,7 @@ function handleInput() {
     debugLog(elevator)
   }
   
-  if (y == gameHeight - 1 && !!elevator && !elevator.getBusy() && !!selectedGuest && !!targetRoom) {
-    console.log(selectedGuest);
+  if (y == gameHeight - 1 && !!elevator && !elevator.getBusy() && !!selectedGuest && targetRoom != null) {
     guest = waitingGuests[selectedGuest - 1];
     elevator.setBusy(true);
     selector.select(x, y);
@@ -266,7 +357,7 @@ function handleInput() {
     guest = waitingGuests[x - 1];
     
     if (guest.getType() == 3) {
-      if (!!targetRoom) {
+      if (targetRoom != null) {
         roomLights[targetRoom].toggle();
         roomsInProgress[targetRoom] = true;
         guest.teleport(targetRoom);
