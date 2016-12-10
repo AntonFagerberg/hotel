@@ -19,8 +19,13 @@ var init = (function () {
     }
   }
   
-  var createGuest = (function (position) {
-    var sprite = addSprite("guest1", position + 1, gameHeight - 1);
+  var createGuest = (function (position, type) {
+    var sprite = addSprite("guest" + type, position + 1, gameHeight - 1);
+    var speed = 500;
+    
+      if (type == 2) {
+        speed = 1000;
+      }
     
     function doorToX(door) {
       return unit * ((1 + door) * 2);
@@ -33,7 +38,7 @@ var init = (function () {
         debugLog("Going to room " + room + " (floor " + floor + " and door " + door + ")")
         
         var tween1 = game.add.tween(sprite);
-        tween1.to({ x: unit * 12 }, (11 - position) * 500, Phaser.Easing.Default, false, 0);
+        tween1.to({ x: unit * 12 }, (11 - position) * speed, Phaser.Easing.Default, false, 0);
 
         tween1.onComplete.add(function () { 
           elevator.move(floor);
@@ -43,9 +48,12 @@ var init = (function () {
           
           tween2.onComplete.add(function () {
             var moveToDoor = game.add.tween(sprite);
-            moveToDoor.to({ x: doorToX(door) }, (5 - door) * 1000, Phaser.Easing.Default, false, 0);
+            moveToDoor.to({ x: doorToX(door) }, (5 - door) * 2 * speed, Phaser.Easing.Default, false, 0);
             moveToDoor.onComplete.add(function () {
-              roomsInProgress[room] = false;
+              game.time.events.add(Phaser.Timer.SECOND, function () {
+                roomsInProgress[room] = false;
+                sprite.destroy();
+              }, this);
             });
             moveToDoor.start();
           });
@@ -129,7 +137,8 @@ var init = (function () {
       
       if (availableSlots.length != 0) {
         var slot = availableSlots[parseInt(Math.random() * availableSlots.length)];
-        waitingGuests[slot] = create(slot);
+        var type = 1 + parseInt(2 * Math.random());
+        waitingGuests[slot] = create(slot, type);
       }
     });
   }
@@ -158,7 +167,7 @@ var init = (function () {
     game.scale.pageAlignHorizontally = true;
     game.scale.pageAlignVertically = true;
     
-    ["selector", "wall", "painting", "door", "roof", "elevator", "floor", "stairs", "person", "sign", "occupied", "free", "guest1", "elevator_strings"].forEach(function (title) {
+    ["selector", "wall", "painting", "door", "roof", "elevator", "floor", "stairs", "person", "sign", "occupied", "free", "guest1", "guest2", "elevator_strings"].forEach(function (title) {
       game.load.image(title, 'img/' + title + '.png');
     });
   }
@@ -240,21 +249,24 @@ var init = (function () {
     game.input.onDown.add(function () {
       var y = parseInt(game.input.y / unit);
       var x = parseInt(game.input.x / unit);
-      var guest = waitingGuests[x - 1];
       
       debugLog("Target room " + targetRoom)
       debugLog("Elevator busy " + elevator.busy)
       
       if (y == gameHeight - 1 && x == gameWidth - 1 && selectedGuest && !elevator.busy && targetRoom) {
+        var guest = waitingGuests[selectedGuest - 1];
+        waitingGuests[selectedGuest - 1] = null;
+        elevator.busy = true;
         selector.select(x, y);
         roomsInProgress[targetRoom] = true;
         roomLights[targetRoom].toggle();
-        selectedGuest.goToElevator(elevator, targetRoom);
-        elevator.busy = true;
+        guest.goToElevator(elevator, targetRoom);
         selectedGuest = null;
+        selector.hide();
         targetRoom = null;
-      } else if (y == gameHeight - 1 && guest) {
-        selectedGuest = guest;
+      } else if (y == gameHeight - 1 && waitingGuests[x - 1]) {
+        selectedGuest = x;
+        debugLog("Selected guest " + selectedGuest)
         selector.select(x, y);
       } else {
         selectedGuest = null;
