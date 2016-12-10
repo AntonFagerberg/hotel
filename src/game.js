@@ -1,37 +1,55 @@
 var init = (function () {
+  var debug = true;
   var tileSize = 16;
   var scale = 4;
   var unit = tileSize * scale;
   var gameWidth = 13;
-  var gameHeight = 15;
+  var gameHeight = 13;
   var game = new Phaser.Game(gameWidth * unit, gameHeight * unit, Phaser.AUTO, '', { preload: preload, create: create, update: update });
   
   var waitingGuests = [];
+  var roomsInProgress = [];
+  var roomLights = [];
+  var targetRoom = null;
   var selectedGuest = null;
   
+  function debugLog(msg) {
+    if (debug) {
+      console.log(msg);
+    }
+  }
+  
   var createGuest = (function (position) {
-    var sprite = addSprite("guest1", position + 1, 14);
+    var sprite = addSprite("guest1", position + 1, gameHeight - 1);
     
     function doorToX(door) {
       return unit * ((1 + door) * 2);
     }
     
     return {
-      goToElevator: function (elevator, door) {
+      goToElevator: function (elevator, room) {
+        var floor = 5 - parseInt(room / 5);
+        var door = room % 5;
+        debugLog("Going to room " + room + " (floor " + floor + " and door " + door + ")")
+        
         var tween1 = game.add.tween(sprite);
-        tween1.to({ x: unit * 12 }, (12 - position) * 500, Phaser.Easing.Default, false, 0);
+        tween1.to({ x: unit * 12 }, (11 - position) * 500, Phaser.Easing.Default, false, 0);
 
         tween1.onComplete.add(function () { 
-          elevator.move(2);
+          elevator.move(floor);
           
           var tween2 = game.add.tween(sprite);
-          elevator.elevatorUpTween(2, tween2);
+          elevator.elevatorUpTween(floor, tween2);
+          
           tween2.onComplete.add(function () {
-            var tween3 = game.add.tween(sprite);
-            var targetX = doorToX(door);
-            tween3.to({ x: targetX }, (12 - (2 * (1 + door))) * 500, Phaser.Easing.Default, false, 0);
-            tween3.start();
+            var moveToDoor = game.add.tween(sprite);
+            moveToDoor.to({ x: doorToX(door) }, (5 - door) * 1000, Phaser.Easing.Default, false, 0);
+            moveToDoor.onComplete.add(function () {
+              roomsInProgress[room] = false;
+            });
+            moveToDoor.start();
           });
+          
           tween2.start();
         });
         
@@ -39,8 +57,6 @@ var init = (function () {
       }
     };
   });
-  
-
 
   var createElevator = (function() {
     var currentFloor = 0;
@@ -54,7 +70,6 @@ var init = (function () {
     var y = yToFloor(currentFloor);
     
     var sprite = addSprite("elevator", x, y);
-    var tween = game.add.tween(sprite);
     
     return {
       busy: isBusy,
@@ -64,14 +79,14 @@ var init = (function () {
       },
       
       move: function (floor) {
-        // console.log(this);
-        // console.log(guestTween);
-        // guestTween.to({ y: unit * yToFloor(floor) }, Math.abs(floor - currentFloor) * 1500, Phaser.Easing.Default, false, 1500);
-        // guestTween.start();
-        this.elevatorUpTween(floor, tween);
-        // tween.to({ y: unit * yToFloor(floor) }, Math.abs(floor - currentFloor) * 1500, Phaser.Easing.Default, false, 1500);
-        tween.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * 1500, Phaser.Easing.Default, false, 1500);
-        tween.start();
+        self = this;
+        var elevatorTween = game.add.tween(sprite);
+        this.elevatorUpTween(floor, elevatorTween);
+        elevatorTween.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * 1500, Phaser.Easing.Default, false, 1500);
+        elevatorTween.onComplete.add(function () {
+          self.busy = false;
+        });
+        elevatorTween.start();
       }
     };
   });
@@ -117,6 +132,25 @@ var init = (function () {
         waitingGuests[slot] = create(slot);
       }
     });
+  }
+  
+  function freeRoom () {
+    var availableRooms = [];
+    
+    if (targetRoom == null) {
+      for (var x = 0; x != 25; x++) {
+        if (!roomsInProgress[x]) {
+          availableRooms.push(x);
+        }
+      }
+      
+      if (availableRooms.length > 0) {
+        var index = parseInt(availableRooms.length * Math.random());
+        targetRoom = availableRooms[index];
+        roomLights[targetRoom].toggle();
+        debugLog("Freed room: " + targetRoom);
+      }
+    }
   }
   
   function preload () {
@@ -166,7 +200,7 @@ var init = (function () {
             
             if (x % 2 == 0 && y % 2 == 0) {
               addSprite("door", x, y)
-              addSprite("occupied", x, y)
+            //   addSprite("occupied", x, y)
             }
             
             if (x % 2 == 1 && y % 2 == 0) {
@@ -180,6 +214,23 @@ var init = (function () {
         }
       }
     })();
+    
+    for (var x = 0; x != 25; x++) {
+      var light = (function () {
+        var occupied = addSprite("occupied", 2 + 2 * (x % 5), 2 + 2 * parseInt(x / 5));
+        var free = addSprite("free", 2 + 2 * (x % 5), 2 + 2 * parseInt(x / 5));
+        free.visible = false;
+        
+        return {
+          toggle: function () {
+            free.visible = !free.visible;
+            occupied.visible = !occupied.visible;
+          }
+        }
+      })();
+      
+      roomLights.push(light);
+    }
 
     addSprite("sign", 5, 0);
     
@@ -191,14 +242,18 @@ var init = (function () {
       var x = parseInt(game.input.x / unit);
       var guest = waitingGuests[x - 1];
       
-      console.log(x, y);
+      debugLog("Target room " + targetRoom)
+      debugLog("Elevator busy " + elevator.busy)
       
-      if (y == 14 && x == 12 && selectedGuest && !elevator.busy) {
+      if (y == gameHeight - 1 && x == gameWidth - 1 && selectedGuest && !elevator.busy && targetRoom) {
         selector.select(x, y);
-        selectedGuest.goToElevator(elevator);
+        roomsInProgress[targetRoom] = true;
+        roomLights[targetRoom].toggle();
+        selectedGuest.goToElevator(elevator, targetRoom);
         elevator.busy = true;
         selectedGuest = null;
-      } else if (y == 14 && guest) {
+        targetRoom = null;
+      } else if (y == gameHeight - 1 && guest) {
         selectedGuest = guest;
         selector.select(x, y);
       } else {
@@ -210,5 +265,6 @@ var init = (function () {
     //elevator.move(3);
     
     game.time.events.loop(1 * Phaser.Timer.SECOND, spawn(createGuest), this);
+    game.time.events.loop(Phaser.Timer.SECOND, freeRoom, this);
   }
 })
