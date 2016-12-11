@@ -63,9 +63,9 @@ function createGuest(position, type) {
   spriteIdle.animations.add('idle');
   var walkAnimation = spriteWalk.animations.add('walk');
   
-  spriteIdle.animations.play('idle', 5 + Math.random(), true);
+  spriteIdle.animations.play('idle', 7 + Math.random(), true);
   if (type != 3) {
-    spriteWalk.animations.play('walk', 5 + Math.random(), true);
+    spriteWalk.animations.play('walk', 6, true);
   }
   
   var facingLeft = false;
@@ -132,6 +132,7 @@ function createGuest(position, type) {
             sprite.destroy();
           });
           
+          roomLights[room].toggle();
           doors[room].visible = true;
           roomsInProgress[room] = false;
           updateScore(1);
@@ -197,15 +198,19 @@ function createGuest(position, type) {
         elevator.elevatorUpTween(floor, rideElevatorTween);
         
         rideElevatorTween.onComplete.add(function () {
-          spriteIdle.visible = false;
-          spriteWalk.x = spriteIdle.x;
-          spriteWalk.y = spriteIdle.y;
-          spriteWalk.visible = true;
+        
           
           var goToDoorTween = game.add.tween(spriteWalk);
           var speedMultiplier2 = elevator.getRight() ? (5 - door) * 2 : (door + 1) * 2 ;
           
-          goToDoorTween.to({ x: doorToX(door) }, speedMultiplier2 * speed, Phaser.Easing.Default, false, 500);
+          goToDoorTween.onStart.add(function () {
+            spriteIdle.visible = false;
+            spriteWalk.x = spriteIdle.x;
+            spriteWalk.y = spriteIdle.y;
+            spriteWalk.visible = true;
+          });
+          
+          goToDoorTween.to({ x: doorToX(door) }, speedMultiplier2 * speed, Phaser.Easing.Default, false, 750);
           
           goToDoorTween.onComplete.add(function () {
             
@@ -235,7 +240,7 @@ function createGuest(position, type) {
                 sprites.forEach(function(sprite) {
                   sprite.destroy();
                 });
-                
+                roomLights[room].toggle();
                 doors[room].visible = true;
                 roomsInProgress[room] = false;
                 updateScore(1);
@@ -420,6 +425,7 @@ function preload () {
     "sign",
     "occupied",
     "free",
+    "in_progress",
     "guest1",
     "guest2",
     "guest3",
@@ -545,15 +551,25 @@ function create () {
   for (x = 0; x != 25; x++) {
     light = {
       occupied: addSprite("occupied", 2 + 2 * (x % 5), 1 + 2 * parseInt(x / 5)),
+      in_progress: addSprite("in_progress", 2 + 2 * (x % 5), 1 + 2 * parseInt(x / 5)),
       free: addSprite("free", 2 + 2 * (x % 5), 1 + 2 * parseInt(x / 5)),
       
       toggle: function () {
-        this.free.visible = !this.free.visible;
-        this.occupied.visible = !this.occupied.visible;
+        if (this.occupied.visible) {
+          this.occupied.visible = false;
+          this.free.visible = true;
+        } else  if (this.free.visible) {
+          this.in_progress.visible = true;
+          this.free.visible = false;
+        } else if (this.in_progress.visible) {
+          this.in_progress.visible = false;
+          this.occupied.visible = true;
+        }
       }
     }
     
     light.free.visible = false;
+    light.in_progress.visible = false;
     roomLights.push(light);
   }
   
