@@ -1,5 +1,5 @@
 // Settings
-var debug = true;
+var debug = false;
 var tileSize = 16;
 var scale = 4;
 var unit = tileSize * scale;
@@ -108,6 +108,7 @@ function reset() {
   
   waitingGuests = Array(11).fill(undefined);
   roomsInProgress = Array(25).fill(undefined);
+  selectedGuest = null;
   
   roomLights.forEach(function (light) {
     light.occupied.visible = true;
@@ -129,6 +130,8 @@ function reset() {
   
   numbers = [];
   
+  selector.hide();
+
   gameOverSprite.visible = false;
   score = 0;
   dead = false;
@@ -141,7 +144,10 @@ function reset() {
 }
 
 function brickWall() {
-  sound.gameOver.play();
+  if (!tutorial) {
+    console.log(tutorial);
+    sound.gameOver.play();
+  }
   
   bricks.forEach(function (brick) {
     brick.sprite.visible = true;
@@ -631,6 +637,7 @@ function preload () {
   });
   
   [
+    "music",
     "teleport",
     "door_open",
     "door_close",
@@ -710,6 +717,7 @@ function handleInput() {
   } else if (movingGuests == 0 && !elevatorLeft.getBusy() && !elevatorRight.getBusy() && gameOverSprite.visible == true) {
     if (tutorial) {
       tutorial.destroy();
+      tutorial = null;
     }
     reset();
   }
@@ -847,9 +855,16 @@ function create () {
     teleport: game.add.audio('teleport')
   };
   
+  var music = game.add.audio('music')
+  music.loop = true;
+  music.volume = 0.5;
+  music.play();
+  
   selector.hide();
   
   game.input.onDown.add(handleInput);
+  
+  tutorial = true;
   
   brickWall();
   
