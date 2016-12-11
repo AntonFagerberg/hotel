@@ -19,7 +19,6 @@ function debugLog(msg) {
 // State
 var selector, elevatorRight, elevatorLeft, selector;
 
-var allGuests = [];
 var waitingGuests = Array(11).fill(undefined);
 var roomsInProgress = Array(25).fill(undefined);
 var doors = [];
@@ -28,9 +27,10 @@ var bricks = [];
 var roomLights = [];
 var targetRoom = null;
 var selectedGuest = null;
-var scoreText = null;
 var rKey;
 var dead = false;
+var gameOverSprite;
+var movingGuests = 0;
 
 // Helpers
 function doorToX(door) {
@@ -51,21 +51,45 @@ function doorFromRoom(room) {
 
 function updateScore(newScore) {
   score += newScore;
-  scoreText.text = "score: " + score;
+  debugLog("New score: " + score);
 }
 
 function reset() {
+  targetRoom = null;
+  
   waitingGuests.forEach(function (guest) {
     guest.destroy();
   });
-  var waitingGuests = Array(11).fill(undefined);
-  var roomsInProgress = Array(25).fill(undefined);
+  
+  waitingGuests = Array(11).fill(undefined);
+  roomsInProgress = Array(25).fill(undefined);
+  
+  roomLights.forEach(function (light) {
+    light.occupied.visible = true;
+    light.in_progress.visible = false;
+    light.free.visible = false;
+  });
+  
+  bricks.forEach(function (brick) {
+    brick.sprite.visible = false;
+  });
+  
+  gameOverSprite.visible = false;
+  score = 0;
+  dead = false;
+  freeRoom();
 }
 
 function brickWall() {
-  bricks.forEach(function (sprite) {
-    game.world.bringToTop(sprite);
-    sprite.animations.play('build', 10, false);
+  bricks.forEach(function (brick) {
+    brick.sprite.visible = true;
+    game.world.bringToTop(brick.sprite);
+    brick.sprite.animations.play('build', 10, false);
+  });
+  
+  bricks[0].animation.onComplete.add(function() {
+    gameOverSprite.visible = true;
+    game.world.bringToTop(gameOverSprite);
   });
 }
 
@@ -148,6 +172,7 @@ function createGuest(position, type) {
           sprites.forEach(function(sprite) {
             sprite.destroy();
           });
+          movingGuests -= 1;
           
           roomLights[room].toggle();
           doors[room].visible = true;
@@ -258,10 +283,11 @@ function createGuest(position, type) {
                 sprites.forEach(function(sprite) {
                   sprite.destroy();
                 });
+                movingGuests -= 1;
                 roomLights[room].toggle();
                 doors[room].visible = true;
                 roomsInProgress[room] = false;
-                updateScore(1);
+                updateScore(type == 2 ? 3 : 5);
               });
             });
           });
@@ -344,6 +370,12 @@ function createElevator(right) {
           spriteDoor.visible = true;
           game.world.bringToTop(spriteDoor);
           
+          if (dead) {
+            bricks.forEach(function (brick) {
+              game.world.bringToTop(brick.sprite);
+            });
+          }
+          
           var elevatorTween2 = game.add.tween(sprite);
           var elevatorDoorTween2 = game.add.tween(spriteDoor);
           
@@ -351,13 +383,27 @@ function createElevator(right) {
           elevatorDoorTween2.to({ y: unit * yToFloor(0) }, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1000);
           
           elevatorTween2.onComplete.add(function () { 
-            doorOpen.y = sprite.y;
-            doorOpen.visible = true;
-            doorOpen.animations.play('open', 10, false, true);
-            spriteDoor.visible = false;
-            animation.onComplete.add(function () {
-              busy = false; 
-            });
+            // if (!dead) {
+              spriteDoor.visible = false;
+              doorOpen.y = sprite.y;
+              doorOpen.visible = true;
+              game.world.bringToTop(doorOpen);
+              
+              if (dead) {
+                bricks.forEach(function (brick) {
+                  game.world.bringToTop(brick.sprite);
+                });
+              }
+              
+              doorOpen.animations.play('open', 10, false, true);
+              // console.log("!?");
+              animation.onComplete.add(function () {
+                busy = false;
+              });
+            // } else {
+            //   spriteDoor.visible = false;
+            //   busy = false;
+            // }
           });
           
           elevatorTween2.start();
@@ -395,7 +441,6 @@ function spawnNewGuest() {
     var type = 1 + parseInt(3 * Math.random());
     
     waitingGuests[slot] = createGuest(slot, type);
-    allGuests.push(waitingGuests[slot])
   } else if (!dead) {
     brickWall();
     dead = true;
@@ -405,7 +450,7 @@ function spawnNewGuest() {
 function freeRoom () {
   var index, availableRooms = [];
   
-  if (targetRoom == null) {
+  if (!dead && targetRoom == null) {
     for (index = 0; index != 25; index++) {
       if (!roomsInProgress[index]) {
         availableRooms.push(index);
@@ -424,8 +469,6 @@ function preload () {
   game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
   game.scale.pageAlignHorizontally = true;
   game.scale.pageAlignVertically = true;
-  
-  game.load.bitmapFont('font', 'font/font.png', 'font/font.fnt');
   
   [
     "ornament",
@@ -474,6 +517,7 @@ function preload () {
   });
   
   game.load.spritesheet('snow', 'img/snow.png', 48, 32);
+  game.load.spritesheet('game_over', 'img/game_over.png', 96, 16);
 }
 
 function handleInput() {
@@ -497,6 +541,7 @@ function handleInput() {
     }
     
     if (y == gameHeight - 1 && !!elevator && !elevator.getBusy() && !!selectedGuest && targetRoom != null) {
+      movingGuests += 1;
       guest = waitingGuests[selectedGuest - 1];
       elevator.setBusy(true);
       selector.select(x, y);
@@ -513,6 +558,7 @@ function handleInput() {
       
       if (guest.getType() == 3) {
         if (targetRoom != null) {
+          movingGuests += 1;
           roomLights[targetRoom].toggle();
           roomsInProgress[targetRoom] = true;
           guest.teleport(targetRoom);
@@ -532,6 +578,8 @@ function handleInput() {
       selectedGuest = null;
       selector.hide();
     }
+  } else if (movingGuests == 0 && !elevatorLeft.getBusy() && !elevatorRight.getBusy() && gameOverSprite.visible == true) {
+    reset();
   }
 }
 
@@ -543,12 +591,12 @@ function create () {
     addSprite("elevator_strings", gameWidth - 1, y);
   }
   
-  var brick;
+  var brick, animation;
   for (x = 0; x != gameWidth; x++) {
     addSprite("roof", x, 0);
     brick = addSprite("brick_wall", x, gameHeight - 1)
-    brick.animations.add('build');
-    bricks.push(brick);
+    animation = brick.animations.add('build');
+    bricks.push({ sprite: brick, animation: animation });
   }
   
   addSprite("sign", 5, 0);
@@ -591,6 +639,9 @@ function create () {
       snowSprite.frame = x;
       snowSprite.animations.play('snow', 6, true);
     });
+    
+    gameOverSprite = addSprite("game_over", 4, gameHeight - 1);
+    gameOverSprite.visible = false;
   }
   
   var light;
@@ -641,11 +692,16 @@ function create () {
   
   selector.hide();
   
-  scoreText = game.add.bitmapText(10, 6, 'font', 'score: 0', 16);
-  
   game.input.onDown.add(handleInput);
   
   freeRoom();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
