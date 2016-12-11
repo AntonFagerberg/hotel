@@ -28,13 +28,14 @@ var roomLights = [];
 var targetRoom = null;
 var selectedGuest = null;
 var rKey;
-var dead = false;
+var dead = true;
 var gameOverSprite;
 var movingGuests = 0;
 var sound;
 var pleaseWait = [null, null];
 var blankSign = [null, null];
 var numbers = [];
+var tutorial;
 
 // Helpers
 function doorToX(door) {
@@ -87,6 +88,10 @@ function updateScore(newScore) {
         numbers.push(nr3);
       }
     });
+    
+    if (tutorial) {
+      game.world.bringToTop(tutorial);
+    }
   }
   
   debugLog("New score: " + score);
@@ -96,7 +101,9 @@ function reset() {
   targetRoom = null;
   
   waitingGuests.forEach(function (guest) {
-    guest.destroy();
+    if (guest) {
+      guest.destroy();
+    }
   });
   
   waitingGuests = Array(11).fill(undefined);
@@ -521,20 +528,22 @@ function addSprite(name, x, y) {
 function spawnNewGuest() {
   var x, availableSlots = [];
   
-  for (x = 0; x != waitingGuests.length; x++) {
-    if (!waitingGuests[x]) {
-      availableSlots.push(x);
+  if (!dead) {
+    for (x = 0; x != waitingGuests.length; x++) {
+      if (!waitingGuests[x]) {
+        availableSlots.push(x);
+      }
     }
-  }
-  
-  if (availableSlots.length != 0) {
-    var slot = availableSlots[parseInt(Math.random() * availableSlots.length)];
-    var type = 1 + parseInt(3 * Math.random());
     
-    waitingGuests[slot] = createGuest(slot, type);
-  } else if (!dead) {
-    brickWall();
-    dead = true;
+    if (availableSlots.length != 0) {
+      var slot = availableSlots[parseInt(Math.random() * availableSlots.length)];
+      var type = 1 + parseInt(3 * Math.random());
+      
+      waitingGuests[slot] = createGuest(slot, type);
+    } else if (!dead) {
+      brickWall();
+      dead = true;
+    }
   }
 }
 
@@ -557,7 +566,7 @@ function freeRoom () {
 }
 
 function preload () {
-  game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+  // game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
   game.scale.pageAlignHorizontally = true;
   game.scale.pageAlignVertically = true;
   
@@ -633,6 +642,7 @@ function preload () {
   });
   
   game.load.spritesheet('snow', 'img/snow.png', 48, 32);
+  game.load.spritesheet('tutorial', 'img/tutorial.png', 832, 832);
   game.load.spritesheet('game_over', 'img/game_over.png', 96, 16);
 }
 
@@ -697,6 +707,9 @@ function handleInput() {
       sound.error.play();
     }
   } else if (movingGuests == 0 && !elevatorLeft.getBusy() && !elevatorRight.getBusy() && gameOverSprite.visible == true) {
+    if (tutorial) {
+      tutorial.destroy();
+    }
     reset();
   }
 }
@@ -837,12 +850,17 @@ function create () {
   
   game.input.onDown.add(handleInput);
   
-  freeRoom();
+  // freeRoom();
+  // 
+  // spawnNewGuest();
+  // spawnNewGuest();
+  // spawnNewGuest();
+  // spawnNewGuest();
   
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
+  brickWall();
+  
+  tutorial = game.add.sprite(0, 0, 'tutorial');
+  tutorial.smoothed = false;
   
   game.time.events.loop(3 * Phaser.Timer.SECOND, spawnNewGuest, this);
 }
