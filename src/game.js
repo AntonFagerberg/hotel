@@ -57,7 +57,7 @@ function doorFromRoom(room) {
 function updateScore(newScore) {
   score += newScore;
   
-  if (dead && movingGuests == 0) {
+  if (dead && movingGuests == 0 && !elevatorLeft.getBusy() && !elevatorRight.getBusy()) {
     var stringScore = "" + (score > 999 ? 999 : score);
     
     stringScore = ("000".substring(0, 3 - stringScore.length)) + stringScore;
@@ -501,6 +501,7 @@ function createElevator(right) {
 
               animation.onComplete.add(function () {
                 busy = false;
+                updateScore(0);
               });
           });
           
