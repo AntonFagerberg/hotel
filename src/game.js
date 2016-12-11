@@ -32,6 +32,9 @@ var dead = false;
 var gameOverSprite;
 var movingGuests = 0;
 var sound;
+var pleaseWait = [null, null];
+var blankSign = [null, null];
+var numbers = [];
 
 // Helpers
 function doorToX(door) {
@@ -52,6 +55,40 @@ function doorFromRoom(room) {
 
 function updateScore(newScore) {
   score += newScore;
+  
+  if (dead && movingGuests == 0) {
+    var stringScore = "" + (score > 999 ? 999 : score);
+    
+    stringScore = ("000".substring(0, 3 - stringScore.length)) + stringScore;
+    
+    [0, 1].forEach(function (signIndex) {
+      pleaseWait[signIndex].visible = false;
+      blankSign[signIndex].visible = true;
+      game.world.bringToTop(blankSign[signIndex]);
+      
+      var nr1 = addSprite(stringScore[0], 0, 0);
+      nr1.x += blankSign[signIndex].x + 26;
+      nr1.y += blankSign[signIndex].y + 16;
+      numbers.push(nr1);
+      
+      if (stringScore[1]) {
+        var nr2 = addSprite(stringScore[1], 0, 0);
+        nr2.x += blankSign[signIndex].x + 26 + 22;
+        nr2.y += blankSign[signIndex].y + 16;
+        
+        numbers.push(nr2);
+      }
+      
+      if (stringScore[2]) {
+        var nr3 = addSprite(stringScore[2], 0, 0);
+        nr3.x += blankSign[signIndex].x + 26 + 44;
+        nr3.y += blankSign[signIndex].y + 16;
+        
+        numbers.push(nr3);
+      }
+    });
+  }
+  
   debugLog("New score: " + score);
 }
 
@@ -74,6 +111,16 @@ function reset() {
   bricks.forEach(function (brick) {
     brick.sprite.visible = false;
   });
+  
+  blankSign.forEach(function (blank) {
+    blank.visible = false;
+  });
+  
+  numbers.forEach(function (number) {
+    number.destroy();
+  });
+  
+  numbers = [];
   
   gameOverSprite.visible = false;
   score = 0;
@@ -98,6 +145,15 @@ function brickWall() {
   bricks[0].animation.onComplete.add(function() {
     gameOverSprite.visible = true;
     game.world.bringToTop(gameOverSprite);
+    pleaseWait.forEach(function (wait) {
+      game.world.bringToTop(wait);
+      
+      if (movingGuests > 0) {
+        wait.visible = true;  
+      } else {
+        updateScore(0);
+      }
+    });
   });
 }
 
@@ -302,7 +358,7 @@ function createGuest(position, type) {
                 roomLights[room].toggle();
                 doors[room].visible = true;
                 roomsInProgress[room] = false;
-                updateScore(type == 2 ? 3 : 5);
+                updateScore(type == 1 ? 3 : 5);
               });
             });
           });
@@ -390,6 +446,17 @@ function createElevator(right) {
             bricks.forEach(function (brick) {
               game.world.bringToTop(brick.sprite);
             });
+            
+            [0, 1].forEach(function (i) {
+              game.world.bringToTop(pleaseWait[i]);
+              game.world.bringToTop(blankSign[i]);
+            });
+            
+            numbers.forEach(function (nr) {
+              game.world.bringToTop(nr);
+            });
+            
+            game.world.bringToTop(gameOverSprite);
           }
           
           var elevatorTween2 = game.add.tween(sprite);
@@ -410,17 +477,24 @@ function createElevator(right) {
                 bricks.forEach(function (brick) {
                   game.world.bringToTop(brick.sprite);
                 });
+                
+                [0, 1].forEach(function (i) {
+                  game.world.bringToTop(pleaseWait[i]);
+                  game.world.bringToTop(blankSign[i]);
+                });
+                
+                numbers.forEach(function (nr) {
+                  game.world.bringToTop(nr);
+                });
+                
+                game.world.bringToTop(gameOverSprite);
               }
               
               doorOpen.animations.play('open', 10, false, true);
-              // console.log("!?");
+
               animation.onComplete.add(function () {
                 busy = false;
               });
-            // } else {
-            //   spriteDoor.visible = false;
-            //   busy = false;
-            // }
           });
           
           elevatorTween2.start();
@@ -498,6 +572,7 @@ function preload () {
     "painting3",
     "painting4",
     "painting5",
+    "painting6",
     "door",
     "roof",
     "elevator",
@@ -512,6 +587,18 @@ function preload () {
     "guest1",
     "guest2",
     "guest3",
+    "please_wait",
+    "blank_sign",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
     "elevator_strings"
   ].forEach(function (title) {
     game.load.image(title, 'img/' + title + '.png');
@@ -608,8 +695,6 @@ function handleInput() {
       }
     } else {
       sound.error.play();
-      selectedGuest = null;
-      selector.hide();
     }
   } else if (movingGuests == 0 && !elevatorLeft.getBusy() && !elevatorRight.getBusy() && gameOverSprite.visible == true) {
     reset();
@@ -674,8 +759,19 @@ function create () {
       snowSprite.animations.play('snow', 6, true);
     });
     
+    [0, 1].forEach(function (i) {
+      pleaseWait[i] = addSprite("please_wait", 0 + (i * 11), gameHeight - 1);
+      pleaseWait[i].visible = false;
+    });
+    
+    [0, 1].forEach(function (i) {
+      blankSign[i] = addSprite("blank_sign", 0 + (i * 11), gameHeight - 1);
+      blankSign[i].visible = false;
+    });
+    
     gameOverSprite = addSprite("game_over", 4, gameHeight - 1);
     gameOverSprite.visible = false;
+    gameOverSprite.x -= unit / 2;
   }
   
   var light;
@@ -740,6 +836,14 @@ function create () {
   
   freeRoom();
   
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
