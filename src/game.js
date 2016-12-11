@@ -22,6 +22,8 @@ var selector, elevatorRight, elevatorLeft, selector;
 var allGuests = [];
 var waitingGuests = Array(11).fill(undefined);
 var roomsInProgress = Array(25).fill(undefined);
+var doors = [];
+var rooms = [];
 var roomLights = [];
 var targetRoom = null;
 var selectedGuest = null;
@@ -104,15 +106,38 @@ function createGuest(position, type) {
       
       spriteIdle.position.x = x;
       spriteIdle.position.y = y;
-
-      game.time.events.add(Phaser.Timer.SECOND, function () {
-        roomsInProgress[room] = false;
-        sprites.forEach(function (sprite) {
-          sprite.destroy();
+      
+      // COPY PASTE-ish
+      var doorOpen = addSprite('door_open', 0, 0);
+      doorOpen.x = spriteIdle.x;
+      doorOpen.y = spriteIdle.y;
+      doors[room].visible = false;
+      var doorOpenAnimation = doorOpen.animations.add('door_open');
+      doorOpen.animations.play('door_open', 5, false, true);
+      
+      game.world.bringToTop(spriteIdle);
+      
+      doorOpenAnimation.onComplete.add(function () {
+        game.world.sendToBack(spriteIdle);
+        game.world.sendToBack(rooms[room]);
+        
+        var doorClose = addSprite('door_close', 0, 0);
+        doorClose.x = spriteIdle.x;
+        doorClose.y = spriteIdle.y;
+        var doorCloseAnimation = doorClose.animations.add('door_close');
+        doorClose.animations.play('door_close', 5, false, true);
+        
+        doorCloseAnimation.onComplete.add(function () {
+          sprites.forEach(function(sprite) {
+            sprite.destroy();
+          });
+          
+          doors[room].visible = true;
+          roomsInProgress[room] = false;
+          updateScore(1);
         });
-        allGuests = allGuests.filter(function (guest) { console.log(" -> " , guest == self); return guest == self; });
-        updateScore(1);
-      }, true);
+      });
+      // END COPY PASTE
     },
     
     goToElevator: function (elevator, room) {
@@ -183,19 +208,39 @@ function createGuest(position, type) {
           goToDoorTween.to({ x: doorToX(door) }, speedMultiplier2 * speed, Phaser.Easing.Default, false, 500);
           
           goToDoorTween.onComplete.add(function () {
+            
+            var doorOpen = addSprite('door_open', 0, 0);
+            doorOpen.x = spriteWalk.x;
+            doorOpen.y = spriteWalk.y;
+            doors[room].visible = false;
+            var doorOpenAnimation = doorOpen.animations.add('door_open');
+            doorOpen.animations.play('door_open', 5, false, true);
+            
             spriteWalk.visible = false;
             spriteIdle.x = spriteWalk.x;
-            spriteIdle.y = spriteWalk.y;
+            game.world.bringToTop(spriteIdle);
             spriteIdle.visible = true;
             
-            game.time.events.add(Phaser.Timer.SECOND, function () {
-              roomsInProgress[room] = false;
-              sprites.forEach(function(sprite) {
-                sprite.destroy();
+            doorOpenAnimation.onComplete.add(function () {
+              game.world.sendToBack(spriteIdle);
+              game.world.sendToBack(rooms[room]);
+              
+              var doorClose = addSprite('door_close', 0, 0);
+              doorClose.x = spriteWalk.x;
+              doorClose.y = spriteWalk.y;
+              var doorCloseAnimation = doorClose.animations.add('door_close');
+              doorClose.animations.play('door_close', 5, false, true);
+              
+              doorCloseAnimation.onComplete.add(function () {
+                sprites.forEach(function(sprite) {
+                  sprite.destroy();
+                });
+                
+                doors[room].visible = true;
+                roomsInProgress[room] = false;
+                updateScore(1);
               });
-              allGuests = allGuests.filter(function (guest) { console.log(guest == self); return guest == this; });
-              updateScore(1);
-            }, this);
+            });
           });
           
           goToDoorTween.start();
@@ -358,11 +403,18 @@ function preload () {
   [
     "selector",
     "wall",
-    "painting",
+    "wall_door",
+    "wall_with_decoration",
+    "painting1",
+    "painting2",
+    "painting3",
+    "painting4",
+    "painting5",
     "door",
     "roof",
     "elevator",
     "floor",
+    "room",
     "stairs",
     "person",
     "sign",
@@ -383,6 +435,8 @@ function preload () {
     "guest2_walk",
     "guest3_idle",
     "guest3_walk",
+    "door_open",
+    "door_close",
     "elevator_open",
     "elevator_close"
   ].forEach(function (title) {
@@ -458,11 +512,18 @@ function create () {
   }
   
   addSprite("sign", 5, 0);
-  
-  for (x = 1; x != gameWidth - 1; x++) {
-    for (y = 1; y != gameHeight; y++) {
-      
-      addSprite("wall", x, y)
+
+  for (y = 1; y != gameHeight; y++) {  
+    for (x = 1; x != gameWidth - 1; x++) {  
+      if (y % 2 == 1) {
+        addSprite("wall", x, y)
+      } else {
+        if (x % 2 == 1 || y == gameHeight - 1) {
+          addSprite("wall_with_decoration", x, y)
+        } else {
+          addSprite("wall_door", x, y)
+        }
+      }
         
       if (y % 2 == 1) {
         addSprite("floor", x, y)
@@ -470,9 +531,10 @@ function create () {
       
       if (y < gameHeight - 2 && y % 2 == 0) {
         if (x % 2 == 0) {
-          addSprite("door", x, y)
+          rooms.push(addSprite("room", x, y));
+          doors.push(addSprite("door", x, y));
         } else {
-          addSprite("painting", x, y)
+          addSprite("painting" + (1 + parseInt(5 * Math.random())), x, y)
         }
       }
     }
@@ -482,8 +544,8 @@ function create () {
   
   for (x = 0; x != 25; x++) {
     light = {
-      occupied: addSprite("occupied", 2 + 2 * (x % 5), 2 + 2 * parseInt(x / 5)),
-      free: addSprite("free", 2 + 2 * (x % 5), 2 + 2 * parseInt(x / 5)),
+      occupied: addSprite("occupied", 2 + 2 * (x % 5), 1 + 2 * parseInt(x / 5)),
+      free: addSprite("free", 2 + 2 * (x % 5), 1 + 2 * parseInt(x / 5)),
       
       toggle: function () {
         this.free.visible = !this.free.visible;
