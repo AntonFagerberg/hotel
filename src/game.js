@@ -31,6 +31,7 @@ var rKey;
 var dead = false;
 var gameOverSprite;
 var movingGuests = 0;
+var sound;
 
 // Helpers
 function doorToX(door) {
@@ -78,9 +79,16 @@ function reset() {
   score = 0;
   dead = false;
   freeRoom();
+  
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
+  spawnNewGuest();
 }
 
 function brickWall() {
+  sound.gameOver.play();
+  
   bricks.forEach(function (brick) {
     brick.sprite.visible = true;
     game.world.bringToTop(brick.sprite);
@@ -150,6 +158,7 @@ function createGuest(position, type) {
       
       // COPY PASTE-ish
       var doorOpen = addSprite('door_open', 0, 0);
+      sound.doorOpen.play();
       doorOpen.x = spriteIdle.x;
       doorOpen.y = spriteIdle.y;
       doors[room].visible = false;
@@ -169,6 +178,8 @@ function createGuest(position, type) {
         doorClose.animations.play('door_close', 5, false, true);
         
         doorCloseAnimation.onComplete.add(function () {
+          sound.doorClose.play();
+          
           sprites.forEach(function(sprite) {
             sprite.destroy();
           });
@@ -263,6 +274,7 @@ function createGuest(position, type) {
             doors[room].visible = false;
             var doorOpenAnimation = doorOpen.animations.add('door_open');
             doorOpen.animations.play('door_open', 5, false, true);
+            sound.doorOpen.play();
             
             spriteWalk.visible = false;
             spriteIdle.x = spriteWalk.x;
@@ -280,9 +292,12 @@ function createGuest(position, type) {
               doorClose.animations.play('door_close', 5, false, true);
               
               doorCloseAnimation.onComplete.add(function () {
+                sound.doorClose.play();
+                
                 sprites.forEach(function(sprite) {
                   sprite.destroy();
                 });
+                
                 movingGuests -= 1;
                 roomLights[room].toggle();
                 doors[room].visible = true;
@@ -361,6 +376,7 @@ function createElevator(right) {
         doorOpen.visible = true;
         game.world.bringToTop(doorOpen);
         var animation = doorOpen.animations.play('open', 10, false);
+        sound.elevator.play();
         
         var dummyTween = game.add.tween(sprite);
         dummyTween.to({}, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1000);
@@ -384,6 +400,7 @@ function createElevator(right) {
           
           elevatorTween2.onComplete.add(function () { 
             // if (!dead) {
+              sound.elevator.play();
               spriteDoor.visible = false;
               doorOpen.y = sprite.y;
               doorOpen.visible = true;
@@ -516,6 +533,18 @@ function preload () {
     game.load.spritesheet(title, 'img/' + title + '.png', 16, 16);
   });
   
+  [
+    "teleport",
+    "door_open",
+    "door_close",
+    "elevator",
+    "error",
+    "select",
+    "game_over"
+  ].forEach(function (title) {
+     game.load.audio(title, 'sound/' + title + '.ogg');
+  });
+  
   game.load.spritesheet('snow', 'img/snow.png', 48, 32);
   game.load.spritesheet('game_over', 'img/game_over.png', 96, 16);
 }
@@ -541,6 +570,7 @@ function handleInput() {
     }
     
     if (y == gameHeight - 1 && !!elevator && !elevator.getBusy() && !!selectedGuest && targetRoom != null) {
+      sound.select.play();
       movingGuests += 1;
       guest = waitingGuests[selectedGuest - 1];
       elevator.setBusy(true);
@@ -558,6 +588,7 @@ function handleInput() {
       
       if (guest.getType() == 3) {
         if (targetRoom != null) {
+          sound.teleport.play();
           movingGuests += 1;
           roomLights[targetRoom].toggle();
           roomsInProgress[targetRoom] = true;
@@ -570,11 +601,13 @@ function handleInput() {
         selectedGuest = null;
         selector.hide();
       } else {
+        sound.select.play();
         selectedGuest = x;
         debugLog("Selected guest " + selectedGuest)
         selector.select(x, y);
       }
     } else {
+      sound.error.play();
       selectedGuest = null;
       selector.hide();
     }
@@ -595,6 +628,7 @@ function create () {
   for (x = 0; x != gameWidth; x++) {
     addSprite("roof", x, 0);
     brick = addSprite("brick_wall", x, gameHeight - 1)
+    brick.visible = false;
     animation = brick.animations.add('build');
     bricks.push({ sprite: brick, animation: animation });
   }
@@ -690,18 +724,22 @@ function create () {
     }
   };
   
+  sound = {
+    select: game.add.audio('select'),
+    elevator: game.add.audio('elevator'),
+    doorOpen: game.add.audio('door_open'),
+    doorClose: game.add.audio('door_close'),
+    error: game.add.audio('error'),
+    gameOver: game.add.audio('game_over'),
+    teleport: game.add.audio('teleport')
+  };
+  
   selector.hide();
   
   game.input.onDown.add(handleInput);
   
   freeRoom();
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
+  
   spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
