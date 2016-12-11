@@ -566,7 +566,7 @@ function freeRoom () {
 }
 
 function preload () {
-  // game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+  game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
   game.scale.pageAlignHorizontally = true;
   game.scale.pageAlignVertically = true;
   
@@ -849,13 +849,6 @@ function create () {
   selector.hide();
   
   game.input.onDown.add(handleInput);
-  
-  // freeRoom();
-  // 
-  // spawnNewGuest();
-  // spawnNewGuest();
-  // spawnNewGuest();
-  // spawnNewGuest();
   
   brickWall();
   
