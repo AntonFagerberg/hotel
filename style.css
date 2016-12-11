@@ -2,3 +2,9 @@ body {
   margin: 0;
   background-color: #000;
 }
+
+#loading {
+  color: #fff;
+  font-size: 32px;
+  text-align: center;
+}

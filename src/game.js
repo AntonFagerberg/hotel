@@ -358,7 +358,7 @@ function createGuest(position, type) {
                 roomLights[room].toggle();
                 doors[room].visible = true;
                 roomsInProgress[room] = false;
-                updateScore(type == 1 ? 3 : 5);
+                updateScore(type == 1 ? 2 : 3);
               });
             });
           });
@@ -702,6 +702,8 @@ function handleInput() {
 }
 
 function create () {
+  document.getElementById("loading").innerHTML = "";
+  
   var x = 0, y = 0;
   
   for (y = 1; y != gameHeight; y++) {
@@ -813,6 +815,7 @@ function create () {
       this.sprite.x = unit * x;
       this.sprite.y = unit * y;
       this.sprite.visible = true;
+      game.world.bringToTop(this.sprite);
     },
     
     hide: function () {
@@ -836,14 +839,6 @@ function create () {
   
   freeRoom();
   
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
-  
-  spawnNewGuest();
-  spawnNewGuest();
-  spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
   spawnNewGuest();
