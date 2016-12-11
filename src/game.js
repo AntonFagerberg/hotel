@@ -205,6 +205,7 @@ function createGuest(position, type) {
           
           goToDoorTween.onStart.add(function () {
             spriteIdle.visible = false;
+            spriteWalk.frame = 0;
             spriteWalk.x = spriteIdle.x;
             spriteWalk.y = spriteIdle.y;
             spriteWalk.visible = true;
@@ -301,7 +302,7 @@ function createElevator(right) {
         doorOpen.visible = false;
       });
       
-      spriteDoor.animations.play('close', 8);
+      spriteDoor.animations.play('close', 10);
       spriteDoor.visible = true;
       game.world.bringToTop(spriteDoor);
       
@@ -316,13 +317,13 @@ function createElevator(right) {
         doorOpen.y = sprite.y;
         doorOpen.visible = true;
         game.world.bringToTop(doorOpen);
-        var animation = doorOpen.animations.play('open', 5, false);
+        var animation = doorOpen.animations.play('open', 10, false);
         
         var dummyTween = game.add.tween(sprite);
         dummyTween.to({}, Math.abs(floor - currentFloor) * speed, Phaser.Easing.Default, false, 1000);
         
         dummyTween.onComplete.add(function () {
-          spriteDoor.animations.play('close', 8);
+          spriteDoor.animations.play('close', 10);
           spriteDoor.visible = true;
           game.world.bringToTop(spriteDoor);
           
@@ -336,7 +337,7 @@ function createElevator(right) {
             doorOpen.y = sprite.y;
             doorOpen.visible = true;
             game.world.bringToTop(doorOpen);
-            doorOpen.animations.play('open', 5, false, true);
+            doorOpen.animations.play('open', 10, false, true);
             spriteDoor.visible = false;
             busy = false; 
           });
