@@ -24,11 +24,13 @@ var waitingGuests = Array(11).fill(undefined);
 var roomsInProgress = Array(25).fill(undefined);
 var doors = [];
 var rooms = [];
+var bricks = [];
 var roomLights = [];
 var targetRoom = null;
 var selectedGuest = null;
 var scoreText = null;
 var rKey;
+var dead = false;
 
 // Helpers
 function doorToX(door) {
@@ -50,6 +52,21 @@ function doorFromRoom(room) {
 function updateScore(newScore) {
   score += newScore;
   scoreText.text = "score: " + score;
+}
+
+function reset() {
+  waitingGuests.forEach(function (guest) {
+    guest.destroy();
+  });
+  var waitingGuests = Array(11).fill(undefined);
+  var roomsInProgress = Array(25).fill(undefined);
+}
+
+function brickWall() {
+  bricks.forEach(function (sprite) {
+    game.world.bringToTop(sprite);
+    sprite.animations.play('build', 10, false);
+  });
 }
 
 // Functions
@@ -336,10 +353,11 @@ function createElevator(right) {
           elevatorTween2.onComplete.add(function () { 
             doorOpen.y = sprite.y;
             doorOpen.visible = true;
-            game.world.bringToTop(doorOpen);
             doorOpen.animations.play('open', 10, false, true);
             spriteDoor.visible = false;
-            busy = false; 
+            animation.onComplete.add(function () {
+              busy = false; 
+            });
           });
           
           elevatorTween2.start();
@@ -378,6 +396,9 @@ function spawnNewGuest() {
     
     waitingGuests[slot] = createGuest(slot, type);
     allGuests.push(waitingGuests[slot])
+  } else if (!dead) {
+    brickWall();
+    dead = true;
   }
 }
 
@@ -407,6 +428,7 @@ function preload () {
   game.load.bitmapFont('font', 'font/font.png', 'font/font.fnt');
   
   [
+    "ornament",
     "selector",
     "wall",
     "wall_door",
@@ -436,6 +458,7 @@ function preload () {
   });
   
   [
+    "brick_wall",
     "guest1_walk",
     "guest1_idle",
     "guest2_idle",
@@ -449,60 +472,66 @@ function preload () {
   ].forEach(function (title) {
     game.load.spritesheet(title, 'img/' + title + '.png', 16, 16);
   });
+  
+  game.load.spritesheet('snow', 'img/snow.png', 48, 32);
 }
 
 function handleInput() {
-  debugLog(roomsInProgress);
-  debugLog(waitingGuests);
-  
-  var y = parseInt(game.input.y / unit);
-  var x = parseInt(game.input.x / unit);
-  
-  debugLog("x " + x + ", y " + y);
-  
-  var elevator, guest;
-  
-  if (x == gameWidth - 1) {
-    elevator = elevatorRight;
-    debugLog(elevator)
-  } else if (x == 0) {
-    elevator = elevatorLeft;
-    debugLog(elevator)
-  }
-  
-  if (y == gameHeight - 1 && !!elevator && !elevator.getBusy() && !!selectedGuest && targetRoom != null) {
-    guest = waitingGuests[selectedGuest - 1];
-    elevator.setBusy(true);
-    selector.select(x, y);
-    roomsInProgress[targetRoom] = true;
-    roomLights[targetRoom].toggle();
-    guest.goToElevator(elevator, targetRoom);
-    selector.hide();
-    waitingGuests[selectedGuest - 1] = null;
-    selectedGuest = null;
-    targetRoom = null;
-  } else if (y == gameHeight - 1 && waitingGuests[x - 1]) {
-    guest = waitingGuests[x - 1];
+  if (!dead) {
+    debugLog(roomsInProgress);
+    debugLog(waitingGuests);
     
-    if (guest.getType() == 3) {
-      if (targetRoom != null) {
-        roomLights[targetRoom].toggle();
-        roomsInProgress[targetRoom] = true;
-        guest.teleport(targetRoom);
-        targetRoom = null;
-        waitingGuests[x - 1] = null;
-      }
+    var y = parseInt(game.input.y / unit);
+    var x = parseInt(game.input.x / unit);
+    
+    debugLog("x " + x + ", y " + y);
+    
+    var elevator, guest;
+    
+    if (x == gameWidth - 1) {
+      elevator = elevatorRight;
+      debugLog(elevator)
+    } else if (x == 0) {
+      elevator = elevatorLeft;
+      debugLog(elevator)
+    }
+    
+    if (y == gameHeight - 1 && !!elevator && !elevator.getBusy() && !!selectedGuest && targetRoom != null) {
+      guest = waitingGuests[selectedGuest - 1];
+      elevator.setBusy(true);
+      selector.select(x, y);
+      roomsInProgress[targetRoom] = true;
+      roomLights[targetRoom].toggle();
+      guest.goToElevator(elevator, targetRoom);
+      selector.hide();
+      waitingGuests[selectedGuest - 1] = null;
+      selectedGuest = null;
+      targetRoom = null;
+      freeRoom();
+    } else if (y == gameHeight - 1 && waitingGuests[x - 1]) {
+      guest = waitingGuests[x - 1];
       
+      if (guest.getType() == 3) {
+        if (targetRoom != null) {
+          roomLights[targetRoom].toggle();
+          roomsInProgress[targetRoom] = true;
+          guest.teleport(targetRoom);
+          targetRoom = null;
+          waitingGuests[x - 1] = null;
+          freeRoom();
+        }
+        
+        selectedGuest = null;
+        selector.hide();
+      } else {
+        selectedGuest = x;
+        debugLog("Selected guest " + selectedGuest)
+        selector.select(x, y);
+      }
+    } else {
       selectedGuest = null;
       selector.hide();
-    } else {
-      selectedGuest = x;
-      debugLog("Selected guest " + selectedGuest)
-      selector.select(x, y);
     }
-  } else {
-    selectedGuest = null;
-    selector.hide();
   }
 }
 
@@ -514,8 +543,12 @@ function create () {
     addSprite("elevator_strings", gameWidth - 1, y);
   }
   
+  var brick;
   for (x = 0; x != gameWidth; x++) {
     addSprite("roof", x, 0);
+    brick = addSprite("brick_wall", x, gameHeight - 1)
+    brick.animations.add('build');
+    bricks.push(brick);
   }
   
   addSprite("sign", 5, 0);
@@ -545,6 +578,19 @@ function create () {
         }
       }
     }
+    
+    var ornament = addSprite("ornament", 4, gameHeight - 1);
+    ornament.y -= unit / 2;
+    
+    ornament = addSprite("ornament", 8, gameHeight - 1);
+    ornament.y -= unit / 2;
+    
+    [1, 5, 9].forEach(function (x) {
+      var snowSprite = addSprite("snow", x, gameHeight - 2)
+      var snowAnimation = snowSprite.animations.add('snow');
+      snowSprite.frame = x;
+      snowSprite.animations.play('snow', 6, true);
+    });
   }
   
   var light;
@@ -606,5 +652,4 @@ function create () {
   spawnNewGuest();
   
   game.time.events.loop(3 * Phaser.Timer.SECOND, spawnNewGuest, this);
-  game.time.events.loop(2 * Phaser.Timer.SECOND, freeRoom, this);
 }
