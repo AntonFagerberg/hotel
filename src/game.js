@@ -8,7 +8,7 @@ var gameHeight = 13;
 var score = 0;
 
 // Phaser game
-var game = new Phaser.Game(gameWidth * unit, gameHeight * unit, Phaser.AUTO, '', { preload: preload, create: create });
+var game = new Phaser.Game(gameWidth * unit, gameHeight * unit, Phaser.CANVAS, '', { preload: preload, create: create });
 
 function debugLog(msg) {
   if (debug) {
